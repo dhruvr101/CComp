@@ -59,6 +59,10 @@ export type OnboardingSession = {
   completedTasks: string[];
   sessionNotes: string;
   aiPersonality: "mentor" | "friendly" | "technical" | "encouraging";
+  // Persisted user preferences
+  userLevel: "beginner" | "intermediate" | "advanced";
+  userRole: string;
+  repositories: string[];
 };
 
 // Advanced task generation with AI integration

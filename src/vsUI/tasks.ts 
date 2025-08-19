@@ -1,0 +1,61 @@
+import { askAI } from "./openaiClient";
+
+export type Task = {
+  id: string;
+  title: string;
+  description: string;
+  type: "terminal" | "explore" | "qa";
+  file?: string;
+  command?: string;
+  question?: string;
+  answer?: string;
+  completed?: boolean;
+};
+
+export async function generateTasks(repoName: string): Promise<Task[]> {
+  // Static baseline tasks
+  const baseTasks: Task[] = [
+    {
+      id: "setup",
+      title: "Setup Environment",
+      description: `Open terminal and run 'npm install' to install dependencies for ${repoName}.`,
+      type: "terminal",
+      command: "npm install",
+    },
+    {
+      id: "explore-auth",
+      title: "Explore Authentication",
+      description: `Open Auth.tsx and walk through how sign in/up connects to Firebase and backend.`,
+      type: "explore",
+      file: "src/Auth.tsx",
+    },
+    {
+      id: "qa-auth",
+      title: "Q&A: Authentication Flow",
+      description: "Answer: Where is authentication role assigned in backend?",
+      type: "qa",
+      question: "In the code, how does the backend assign roles to users?",
+      answer: "By calling /assign-role which sets custom claims + writes Firestore",
+    },
+  ];
+
+  // Enhance with AI
+  try {
+    const aiQ = await askAI(
+      `Generate one onboarding Q&A task for a new hire exploring the ${repoName} project. 
+       It should involve tracing code and explain why it’s important.`
+    );
+
+    baseTasks.push({
+      id: "ai-qa",
+      title: "AI-Generated Deep Dive",
+      description: aiQ,
+      type: "qa",
+      question: "Summarize what you learned from the AI mentor.",
+    });
+  } catch (e) {
+    console.warn("AI task generation failed:", e);
+  }
+
+  return baseTasks;
+}

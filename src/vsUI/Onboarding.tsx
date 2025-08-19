@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import FileTree from "./FileTree";
 import CodeEditor from "./CodeEditor";
 import Terminal from "./Terminal";
@@ -6,6 +7,7 @@ import Walkthrough from "./Walkthrough";
 import type { Task, OnboardingSession } from "./tasks";
 import { generateAdvancedTasks, getNextAvailableTask } from "./tasks";
 import { generatePersonalizedFeedback } from "./openaiClient";
+import { db } from "../firebase";
 
 interface OnboardingProps {
   userId?: string;
@@ -13,8 +15,6 @@ interface OnboardingProps {
   userLevel?: "beginner" | "intermediate" | "advanced";
   userRole?: string;
   repositories?: string[];
-  customInstructions?: string;
-  isPreviewMode?: boolean;
   onComplete?: (session: OnboardingSession) => void;
 }
 
@@ -24,8 +24,6 @@ export default function Onboarding({
   userLevel = "intermediate",
   userRole = "developer",
   repositories = ["colicitv2"],
-  customInstructions,
-  isPreviewMode = false,
   onComplete
 }: OnboardingProps) {
   const [session, setSession] = useState<OnboardingSession | null>(null);
@@ -36,29 +34,70 @@ export default function Onboarding({
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [personalizedFeedback, setPersonalizedFeedback] = useState<string>("");
 
-  // Initialize onboarding session
+  // Load or start onboarding session from Firestore
   useEffect(() => {
-    initializeSession();
-  }, []);
+    const loadSession = async () => {
+      setLoading(true);
+      try {
+        const ref = doc(db, 'onboardingSessions', userId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data() as any;
+          const restored: OnboardingSession = {
+            ...data,
+            startedAt: new Date(data.startedAt),
+          };
+          setSession(restored);
+        } else {
+          await initializeSession();
+        }
+      } catch (e) {
+        console.error('Failed to load session:', e);
+        initializeSession();
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSession();
+  }, [userId]);
+
+  // Persist session state to Firestore on changes
+  useEffect(() => {
+    const saveSession = async () => {
+      if (!session) return;
+      try {
+        const ref = doc(db, 'onboardingSessions', userId);
+        await setDoc(ref, { ...session, startedAt: session.startedAt.toISOString() });
+      } catch (e) {
+        console.error('Failed to save session:', e);
+      }
+    };
+    saveSession();
+  }, [session, userId]);
 
   const initializeSession = async () => {
     try {
+      // Clear any previous saved session in Firestore
+      await deleteDoc(doc(db, 'onboardingSessions', userId));
       setLoading(true);
       setError(null);
 
       // Generate tasks based on repository and user level
-      const tasks = await generateAdvancedTasks(repositoryName, userLevel, userRole, repositories, customInstructions);
+      const tasks = await generateAdvancedTasks(repositoryName, userLevel, userRole, repositories);
 
       const newSession: OnboardingSession = {
         id: `session-${Date.now()}`,
         userId,
         repositoryName,
+        userLevel,
+        userRole,
+        repositories,
         startedAt: new Date(),
         currentTaskIndex: 0,
         tasks,
         completedTasks: [],
         sessionNotes: "",
-        aiPersonality: "mentor"
+        aiPersonality: "mentor",
       };
 
       setSession(newSession);
@@ -246,46 +285,6 @@ export default function Onboarding({
       backgroundColor: "#1e1e1e",
       color: "#cccccc"
     }}>
-      {/* Preview Mode Banner */}
-      {isPreviewMode && (
-        <div style={{
-          backgroundColor: "#e3f2fd",
-          borderBottom: "2px solid #2196f3",
-          padding: "12px 24px",
-          textAlign: "center",
-          fontWeight: "bold",
-          color: "#1565c0",
-          fontSize: "14px"
-        }}>
-          🔍 PREVIEW MODE - This is what the user will see during onboarding
-          <button 
-            style={{
-              marginLeft: "16px",
-              padding: "6px 12px",
-              backgroundColor: "#1976d2",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "12px"
-            }}
-            onClick={() => onComplete && onComplete({ 
-              id: session.id, 
-              userId: session.userId, 
-              repositoryName: session.repositoryName,
-              startedAt: session.startedAt,
-              currentTaskIndex: session.currentTaskIndex,
-              tasks: session.tasks,
-              completedTasks: session.completedTasks,
-              sessionNotes: session.sessionNotes,
-              aiPersonality: session.aiPersonality
-            })}
-          >
-            Exit Preview
-          </button>
-        </div>
-      )}
-      
       {/* VS Code-like layout */}
       <div style={{ 
         display: "grid", 
