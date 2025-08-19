@@ -235,7 +235,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       setOnboardingModalOpen(false);
 
       alert(
-        `Onboarding session created!\n\n📧 Email invitation sent to: ${session.email}\n🔗 Signup link (dev): http://localhost:5174/employee-signup?token=${session.id}\n\nThe employee will create their account via this link and be directed to onboarding.`
+        `Onboarding session created!\n\n📧 Email invitation sent to: ${session.email}\n🔗 Signup link (dev): http://localhost:5175/?employee-signup&token=${session.id}\n\nThe employee will create their account via this link and be directed to onboarding.`
       );
       console.log("✅ Onboarding session added successfully");
     } catch (err) {
@@ -423,7 +423,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                           variant="light"
                           size="sm"
                           component="a"
-                          href={`http://localhost:5174/employee-signup?token=${s.id}`}
+                          href={`http://localhost:5175/?employee-signup&token=${s.id}`}
                           target="_blank"
                         >
                           <IconExternalLink size={14} />

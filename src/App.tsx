@@ -4,6 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase";
 import Auth from "./Auth";
 import AdminDashboard from "./AdminDashboard";
+import EmployeeSignup from "./EmployeeSignup";
 import Onboarding from "./vsUI/Onboarding";
 import RoleSelection from "./vsUI/RoleSelection";
 import { doc, getDoc } from 'firebase/firestore';
@@ -15,6 +16,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
+  const [showEmployeeSignup, setShowEmployeeSignup] = useState(false);
+  const [employeeSignupToken, setEmployeeSignupToken] = useState<string | null>(null);
   const [onboardingConfig, setOnboardingConfig] = useState<{
     role: string;
     level: string;
@@ -22,6 +25,19 @@ export default function App() {
   } | null>(null);
 
   useEffect(() => {
+    // Check for employee signup token in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const isEmployeeSignup = urlParams.has('employee-signup') || window.location.pathname === '/employee-signup';
+    
+    if (token && isEmployeeSignup) {
+      console.log("🔍 Employee signup token found:", token);
+      setEmployeeSignupToken(token);
+      setShowEmployeeSignup(true);
+      setLoading(false);
+      return; // Don't proceed with auth checks if this is an employee signup
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setUser(null);
@@ -90,6 +106,69 @@ export default function App() {
       >
         Loading...
       </div>
+    );
+  }
+
+  // Show employee signup if we have a token
+  if (showEmployeeSignup && employeeSignupToken) {
+    // If user is logged in, show logout option
+    if (user) {
+      return (
+        <div
+          style={{
+            height: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "black",
+            color: "white",
+            flexDirection: "column",
+          }}
+        >
+          <h2>Already Logged In</h2>
+          <p>You are already logged in as {user.email}. Please log out first to create a new employee account.</p>
+          <button
+            onClick={() => {
+              auth.signOut();
+              setShowEmployeeSignup(false);
+              setEmployeeSignupToken(null);
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }}
+            style={{
+              padding: "12px 24px",
+              backgroundColor: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "16px",
+              marginTop: "20px"
+            }}
+          >
+            Logout and Try Again
+          </button>
+        </div>
+      );
+    }
+    
+    // If no user, show employee signup
+    return (
+      <EmployeeSignup
+        token={employeeSignupToken}
+        onSignupComplete={(sessionData) => {
+          console.log("🔍 Employee signup completed:", sessionData);
+          setOnboardingConfig({
+            role: sessionData.role,
+            level: sessionData.userLevel || "beginner",
+            repositories: sessionData.repositories,
+          });
+          setShowEmployeeSignup(false);
+          setEmployeeSignupToken(null);
+          // Clear the URL parameters
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // The onAuthStateChanged will trigger and eventually show onboarding
+        }}
+      />
     );
   }
 

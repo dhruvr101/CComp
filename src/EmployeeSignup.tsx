@@ -22,6 +22,7 @@ interface OnboardingSessionData {
   role: string;
   repositories: string[];
   customInstructions?: string;
+  userLevel?: string;
   adminUid: string;
   adminName?: string;
   adminEmail?: string;
@@ -137,6 +138,7 @@ export default function EmployeeSignup({ token, onSignupComplete }: EmployeeSign
         role: result.session.role,
         repositories: result.session.repositories,
         customInstructions: result.session.customInstructions,
+        userLevel: result.session.userLevel || "beginner",
         adminUid: sessionData.adminUid,
       });
 

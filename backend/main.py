@@ -75,6 +75,7 @@ class OnboardingSession(BaseModel):
     completedAt: Optional[datetime] = None
     progress: int
     customInstructions: Optional[str] = None
+    userLevel: str = "beginner"  # beginner, intermediate, advanced
     adminUid: str
 
 class CreateOnboardingRequest(BaseModel):
@@ -82,6 +83,7 @@ class CreateOnboardingRequest(BaseModel):
     role: str
     repositories: List[str]  # repo IDs
     customInstructions: Optional[str] = None
+    userLevel: str = "beginner"  # Default to beginner
     adminUid: str
 
 class EmployeeSignupRequest(BaseModel):
@@ -133,11 +135,23 @@ def send_onboarding_email(to_email: str, onboarding_link: str, role: str, admin_
 @app.post("/assign-role")
 async def assign_role(data: SignupRequest):
     auth.set_custom_user_claims(data.uid, {"role": data.role})
+    
+    # Create user document
     db.collection("users").document(data.uid).set({
         "name": data.name,
         "email": data.email,
         "role": data.role
     })
+    
+    # If admin, also create admin document for onboarding system
+    if data.role == "admin":
+        db.collection("admins").document(data.uid).set({
+            "name": data.name,
+            "email": data.email,
+            "createdAt": datetime.now()
+        })
+        print(f"🔍 Created admin document for {data.email}")
+    
     return {"message": f"Role {data.role} assigned to {data.email}"}
 
 # Repositories
@@ -205,16 +219,70 @@ async def create_onboarding(session: CreateOnboardingRequest):
         createdAt=datetime.now(),
         progress=0,
         customInstructions=session.customInstructions,
+        userLevel=session.userLevel,
         adminUid=session.adminUid
     )
 
-    db.collection("admins").document(session.adminUid)\
-      .collection("onboarding_sessions").document(session_id)\
-      .set(new_session.dict())
+    # Store the session
+    session_ref = db.collection("admins").document(session.adminUid)\
+      .collection("onboarding_sessions").document(session_id)
+    session_ref.set(new_session.dict())
 
-    link = f"http://localhost:5174/employee-signup?token={session_id}"
+    link = f"http://localhost:5175/?employee-signup&token={session_id}"
     send_onboarding_email(session.email, link, session.role, admin_name)
     return new_session
+
+@app.get("/debug/admins")
+async def debug_admins():
+    """Debug endpoint to see what admin documents exist"""
+    admins = []
+    for admin_doc in db.collection("admins").stream():
+        admin_data = admin_doc.to_dict()
+        admin_uid = admin_doc.id
+        
+        # Get sessions for this admin
+        sessions = []
+        for session_doc in admin_doc.reference.collection("onboarding_sessions").stream():
+            sessions.append({
+                "id": session_doc.id,
+                "data": session_doc.to_dict()
+            })
+        
+        admins.append({
+            "uid": admin_uid,
+            "data": admin_data,
+            "sessions": sessions
+        })
+    
+    return {"admins": admins}
+
+@app.post("/debug/migrate-admins")
+async def migrate_admins():
+    """Create admin documents for existing admin users"""
+    migrated = []
+    
+    # Find all users with admin role
+    users = db.collection("users").where("role", "==", "admin").stream()
+    
+    for user_doc in users:
+        user_data = user_doc.to_dict()
+        user_uid = user_doc.id
+        
+        # Check if admin document already exists
+        admin_ref = db.collection("admins").document(user_uid)
+        if not admin_ref.get().exists:
+            # Create admin document
+            admin_ref.set({
+                "name": user_data.get("name"),
+                "email": user_data.get("email"),
+                "createdAt": datetime.now()
+            })
+            migrated.append({
+                "uid": user_uid,
+                "email": user_data.get("email")
+            })
+    
+    return {"migrated": migrated}
 
 @app.get("/onboarding-sessions/{admin_uid}")
 async def list_onboarding_sessions(admin_uid: str):
@@ -252,6 +320,7 @@ async def get_employee_onboarding(token: str):
                 "role": session["role"],
                 "repositories": session["repositories"],  # repo IDs
                 "customInstructions": session.get("customInstructions"),
+                "userLevel": session.get("userLevel", "beginner"),
                 "adminUid": admin_uid,
                 "adminName": admin_info.get("name", "Unknown Admin"),
                 "adminEmail": admin_info.get("email", "")
@@ -299,5 +368,6 @@ async def employee_signup(data: EmployeeSignupRequest):
             "role": role,
             "repositories": session_data["repositories"],
             "customInstructions": session_data.get("customInstructions"),
+            "userLevel": session_data.get("userLevel", "beginner"),
         }
     }
