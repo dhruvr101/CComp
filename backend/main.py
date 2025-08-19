@@ -15,16 +15,23 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
-# Load env vars
-load_dotenv()
+# Always load backend/.env no matter where uvicorn runs from
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
-# Firebase init
-cred = credentials.Certificate("colicit-firebase-adminsdk-fbsvc-3d5bc416c3.json")
+cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
+if not cred_path:
+    raise RuntimeError("❌ GOOGLE_APPLICATION_CREDENTIALS not set in .env")
+
+if not os.path.exists(cred_path):
+    raise FileNotFoundError(f"❌ Firebase credentials file not found: {cred_path}")
+
+cred = credentials.Certificate(cred_path)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-app = FastAPI()
 
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # allow frontend in dev
