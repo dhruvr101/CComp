@@ -1,19 +1,25 @@
-# Environment files
+# --- Environment files ---
 .env
 .env.local
 .env.development
 .env.production
 
-
-# Node stuff
-node_modules
-dist
-build
-
-venv/
-.venv/backend/colicit-firebase-adminsdk-fbsvc-3d5bc416c3.json
-backend/colicit-firebase-adminsdk-fbsvc-3d5bc416c3.json
-backend/colicit-firebase-adminsdk-fbsvc-3d5bc416c3.json
-backend/colicit-firebase-adminsdk-fbsvc-3d5bc416c3.json
-
+# --- Firebase service accounts ---
 colicit-firebase-adminsdk-*.json
+backend/colicit-firebase-adminsdk-*.json
+
+# --- Python (FastAPI backend) ---
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Node (React frontend) ---
+node_modules/
+dist/
+build/
+
+# --- Other ---
+.DS_Store
