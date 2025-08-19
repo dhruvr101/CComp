@@ -8,6 +8,13 @@ from typing import List, Optional
 import uuid
 from datetime import datetime
 from fastapi import Body
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 # Load Firebase Admin SDK
@@ -68,6 +75,80 @@ class CreateOnboardingRequest(BaseModel):
     repositories: List[str]
     customInstructions: Optional[str] = None
     adminUid: str  # Track which admin is creating this
+
+class EmployeeSignupRequest(BaseModel):
+    uid: str
+    name: str
+    email: str
+    onboarding_token: str
+
+# Email configuration (you'll need to set these environment variables)
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+EMAIL_USER = os.getenv("EMAIL_USER", "your-email@gmail.com")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "your-app-password")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "noreply@yourcompany.com")
+
+def send_onboarding_email(to_email: str, onboarding_link: str, role: str):
+    """Send onboarding email to new employee"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = FROM_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = "Welcome to the Team! Complete Your Account Setup"
+        
+        html_body = f"""
+        <html>
+        <head></head>
+        <body>
+            <h2>🎉 Welcome to the Team!</h2>
+            <p>You've been invited to join our company as a <strong>{role}</strong>.</p>
+            
+            <p>To get started, please click the link below to create your account and begin your personalized onboarding:</p>
+            
+            <p style="margin: 20px 0;">
+                <a href="{onboarding_link}" 
+                   style="background-color: #0e639c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    🚀 Create Account & Start Onboarding
+                </a>
+            </p>
+            
+            <p><strong>What happens next?</strong></p>
+            <ul>
+                <li>Create your account with this email address</li>
+                <li>Complete a personalized walkthrough of our codebase</li>
+                <li>Learn about the repositories you'll be working with</li>
+                <li>Get familiar with our development environment</li>
+            </ul>
+            
+            <p>If you have any questions, please don't hesitate to reach out to your manager.</p>
+            
+            <p>Welcome aboard! 🎉</p>
+            
+            <hr>
+            <p style="font-size: 12px; color: #666;">
+                This link is unique to you and will expire once used. If you didn't expect this email, please contact your administrator.
+            </p>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(html_body, 'html'))
+        
+        # Send email
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_USER, EMAIL_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(FROM_EMAIL, to_email, text)
+        server.quit()
+        
+        print(f"✅ Onboarding email sent successfully to {to_email}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to send email to {to_email}: {str(e)}")
+        return False
 
 @app.post("/assign-role")
 async def assign_role(data: SignupRequest):
@@ -244,9 +325,16 @@ async def create_onboarding_session(session_data: CreateOnboardingRequest):
         # Save to Firestore
         db.collection("admins").document(session_data.adminUid).collection("onboarding_sessions").document(session_id).set(session.dict())
         
-        # TODO: Send email with onboarding link
-        onboarding_link = f"http://localhost:3000/onboarding/{session_id}"
-        print(f"Onboarding email would be sent to {session_data.email} with link: {onboarding_link}")
+        # Send actual email with onboarding link
+        onboarding_link = f"http://localhost:5174/employee-signup?token={session_id}"
+        
+        # Try to send email, but don't fail if email service is not configured
+        email_sent = send_onboarding_email(session_data.email, onboarding_link, session_data.role)
+        
+        if email_sent:
+            print(f"✅ Onboarding email sent to {session_data.email}")
+        else:
+            print(f"⚠️ Email service not configured. Manual link: {onboarding_link}")
         
         return session
     except Exception as e:
@@ -267,6 +355,132 @@ async def get_onboarding_session(admin_uid: str, session_id: str):
         return session_data
     except Exception as e:
         print("get_onboarding_session error:", repr(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/employee-onboarding/{token}")
+async def get_employee_onboarding_session(token: str):
+    """Get onboarding session by token for employee signup"""
+    try:
+        print(f"🔍 Looking up employee onboarding session for token: {token}")
+        
+        # Search for onboarding session across all admins using the session ID as token
+        admins_ref = db.collection("admins")
+        
+        for admin_doc in admins_ref.stream():
+            admin_uid = admin_doc.id
+            print(f"🔍 Checking admin: {admin_uid}")
+            session_ref = admin_doc.reference.collection("onboarding_sessions").document(token)
+            session_doc = session_ref.get()
+            
+            if session_doc.exists:
+                session_data = session_doc.to_dict()
+                print(f"✅ Found session for admin {admin_uid}: {session_data}")
+                
+                # Check if session is still valid (pending status)
+                if session_data.get("status") != "pending":
+                    print(f"❌ Session status is {session_data.get('status')}, not pending")
+                    raise HTTPException(status_code=400, detail="Onboarding session is no longer valid")
+                
+                # Return session data for employee signup
+                result = {
+                    "id": token,
+                    "email": session_data["email"],
+                    "role": session_data["role"],
+                    "repositories": session_data["repositories"],
+                    "customInstructions": session_data.get("customInstructions"),
+                    "adminUid": admin_uid
+                }
+                
+                # Try to get admin name/info
+                try:
+                    admin_user_ref = db.collection("users").document(admin_uid)
+                    admin_user_doc = admin_user_ref.get()
+                    if admin_user_doc.exists:
+                        admin_data = admin_user_doc.to_dict()
+                        result["adminName"] = admin_data.get("name", "Unknown Admin")
+                        result["adminEmail"] = admin_data.get("email", "")
+                except Exception as admin_err:
+                    print(f"⚠️ Could not fetch admin info: {admin_err}")
+                
+                print(f"✅ Returning session data: {result}")
+                return result
+        
+        print(f"❌ No session found for token: {token}")
+        raise HTTPException(status_code=404, detail="Invalid onboarding token")
+    except Exception as e:
+        print("get_employee_onboarding_session error:", repr(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/employee-signup")
+async def employee_signup(data: EmployeeSignupRequest):
+    """Complete employee signup with onboarding token"""
+    try:
+        # First, get the onboarding session to validate token and get admin info
+        token = data.onboarding_token
+        admins_ref = db.collection("admins")
+        admin_uid = None
+        session_data = None
+        
+        for admin_doc in admins_ref.stream():
+            admin_uid = admin_doc.id
+            session_ref = admin_doc.reference.collection("onboarding_sessions").document(token)
+            session_doc = session_ref.get()
+            
+            if session_doc.exists:
+                session_data = session_doc.to_dict()
+                break
+        
+        if not session_data:
+            raise HTTPException(status_code=404, detail="Invalid onboarding token")
+        
+        # Verify email matches
+        if session_data["email"] != data.email:
+            raise HTTPException(status_code=400, detail="Email does not match invitation")
+        
+        # Check if session is still valid
+        if session_data.get("status") != "pending":
+            raise HTTPException(status_code=400, detail="Onboarding session is no longer valid")
+        
+        # Set custom claims in Firebase Auth as employee
+        role = session_data["role"]
+        auth.set_custom_user_claims(data.uid, {"role": "employee", "job_role": role})
+        
+        # Create user record in Firestore
+        db.collection("users").document(data.uid).set({
+            "name": data.name,
+            "email": data.email,
+            "role": "employee",
+            "job_role": role,
+            "invitedBy": admin_uid,
+            "onboardingSessionId": token,
+            "signupDate": datetime.now()
+        })
+        
+        # Update onboarding session status
+        session_ref = (
+            db.collection("admins")
+            .document(admin_uid)
+            .collection("onboarding_sessions")
+            .document(token)
+        )
+        session_ref.update({
+            "status": "in_progress",
+            "startedAt": datetime.now(),
+            "employeeUid": data.uid
+        })
+        
+        return {
+            "message": f"Employee signup completed. Role {role} assigned to {data.email}",
+            "session": {
+                "id": token,
+                "role": role,
+                "repositories": session_data["repositories"],
+                "customInstructions": session_data.get("customInstructions")
+            }
+        }
+        
+    except Exception as e:
+        print("employee_signup error:", repr(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/onboarding-sessions/{admin_uid}/{session_id}/progress")

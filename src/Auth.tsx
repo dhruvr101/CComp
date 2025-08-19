@@ -27,6 +27,7 @@ export default function Auth() {
       if (mode === "signup") {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
 
+        // For regular signup, assign admin role (this should be restricted in production)
         await fetch("http://localhost:8001/assign-role", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -34,11 +35,11 @@ export default function Auth() {
             uid: userCred.user.uid,
             name,
             email,
-            role: "admin",
+            role: "admin", // Regular signups become admins for demo
           }),
         });
 
-        alert("Signed up successfully!");
+        alert("Admin account created successfully!");
       } else {
         const userCred = await signInWithEmailAndPassword(auth, email, password);
         const token = await userCred.user.getIdTokenResult();
@@ -86,7 +87,7 @@ export default function Auth() {
               mb="lg"
               style={{ color: "white", fontWeight: 700 }}
             >
-              {mode === "login" ? "Welcome Back" : "Create Account"}
+              {mode === "login" ? "Welcome Back" : "Create Admin Account"}
             </Title>
 
             <Stack>
@@ -156,19 +157,19 @@ export default function Auth() {
                 },
               }}
             >
-              {mode === "login" ? "Login" : "Sign Up"}
+              {mode === "login" ? "Login" : "Create Admin Account"}
             </Button>
 
             <Text c="dimmed" size="sm" ta="center" mt="md" style={{ color: "#aaa" }}>
               {mode === "login"
-                ? "Don't have an account? "
-                : "Already have an account? "}
+                ? "Don't have an admin account? "
+                : "Already have an admin account? "}
               <Anchor
                 size="sm"
                 style={{ color: "white", fontWeight: 600, cursor: "pointer" }}
                 onClick={() => setMode(mode === "login" ? "signup" : "login")}
               >
-                {mode === "login" ? "Sign Up" : "Login"}
+                {mode === "login" ? "Create Admin Account" : "Login"}
               </Anchor>
             </Text>
           </motion.div>

@@ -38,7 +38,6 @@ import {
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import type { User } from "firebase/auth";
-
 interface Repository {
   id: string;
   name: string;
@@ -211,7 +210,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         setNewOnboarding({ email: "", role: "", repositories: [], customInstructions: "" });
         setOnboardingModalOpen(false);
         
-        alert(`Onboarding session created! Email sent to ${session.email}`);
+        alert(`Onboarding session created! 
+
+📧 Email invitation sent to: ${session.email}
+🔗 Signup link: http://localhost:3000/employee-signup?token=${session.id}
+
+The employee will receive an email with a signup link. Once they create their account, they'll automatically be directed to their personalized onboarding walkthrough.`);
       } else {
         const error = await response.json();
         throw new Error(error.detail || "Failed to create onboarding session");
@@ -279,21 +283,24 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   };
 
   return (
-    <Container size="xl" py="md">
-      <Group justify="space-between" mb="xl">
-        <div>
-          <Title order={1}>Admin Dashboard</Title>
-          <Text c="dimmed">Manage repositories and onboarding sessions</Text>
-        </div>
-        <Button
-          variant="light"
-          color="red"
-          leftSection={<IconLogout size={16} />}
-          onClick={() => signOut(auth)}
-        >
-          Logout
-        </Button>
-      </Group>
+    <>
+      <Container size="xl" py="md">
+          <Group justify="space-between" mb="xl">
+            <div>
+              <Title order={1}>Admin Dashboard</Title>
+              <Text c="dimmed">Manage repositories and onboarding sessions</Text>
+            </div>
+            <Group>
+              <Button
+                variant="light"
+                color="red"
+                leftSection={<IconLogout size={16} />}
+                onClick={() => signOut(auth)}
+              >
+                Logout
+              </Button>
+            </Group>
+          </Group>
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
@@ -556,8 +563,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           />
           
           <Alert icon={<IconAlertCircle size={16} />} color="blue">
-            An email will be sent to the employee with a personalized onboarding link.
-            The walkthrough will be tailored for their role and the selected repositories.
+            An email will be sent to the employee with a personalized signup link.
+            They will create their account and automatically be directed to a customized
+            onboarding walkthrough based on their role and the selected repositories.
           </Alert>
           
           <Group justify="flex-end" mt="md">
@@ -570,6 +578,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           </Group>
         </Stack>
       </Modal>
-    </Container>
+      </Container>
+    </>
   );
 }
