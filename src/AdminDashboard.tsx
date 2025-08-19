@@ -117,33 +117,55 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const loadRepositories = async () => {
     try {
+      console.log("🔄 Loading repositories for user:", user.uid);
       const response = await fetch(`http://localhost:8001/repositories/${user.uid}`);
-      if (!response.ok) throw new Error("Failed to fetch repos");
+      console.log("📡 Repository response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Repository fetch failed:", errorText);
+        throw new Error(`Failed to fetch repos: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log("📦 Repository data received:", data);
+      
       const repos = data.map((repo: any) => ({
         ...repo,
         lastSync: new Date(repo.lastSync * 1000 || repo.lastSync),
       })) as Repository[];
       setRepositories(repos);
+      console.log("✅ Repositories loaded successfully:", repos.length);
     } catch (err) {
-      console.error("Error loading repositories:", err);
+      console.error("❌ Error loading repositories:", err);
       setRepositories([]);
     }
   };
 
   const loadOnboardingSessions = async () => {
     try {
+      console.log("🔄 Loading onboarding sessions for user:", user.uid);
       const response = await fetch(`http://localhost:8001/onboarding-sessions/${user.uid}`);
-      if (!response.ok) throw new Error("Failed to fetch sessions");
+      console.log("📡 Onboarding response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Onboarding fetch failed:", errorText);
+        throw new Error(`Failed to fetch sessions: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log("📦 Onboarding data received:", data);
+      
       const sessions = data.map((s: any) => ({
         ...s,
         createdAt: new Date(s.createdAt * 1000 || s.createdAt),
         completedAt: s.completedAt ? new Date(s.completedAt * 1000 || s.completedAt) : undefined,
       })) as OnboardingSession[];
       setOnboardingSessions(sessions);
+      console.log("✅ Onboarding sessions loaded successfully:", sessions.length);
     } catch (err) {
-      console.error("Error loading onboarding sessions:", err);
+      console.error("❌ Error loading onboarding sessions:", err);
       setOnboardingSessions([]);
     }
   };
@@ -151,19 +173,33 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const handleAddRepository = async () => {
     if (!newRepo.name || !newRepo.url) return;
     try {
+      console.log("🔄 Creating repository:", newRepo);
+      const payload = { ...newRepo, adminUid: user.uid };
+      console.log("📡 Sending payload:", payload);
+      
       const response = await fetch("http://localhost:8001/repositories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newRepo, adminUid: user.uid }),
+        body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Failed to create repository");
+      console.log("📡 Repository create response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Repository create failed:", errorText);
+        throw new Error(`Failed to create repository: ${response.status}`);
+      }
+      
       const repository = await response.json();
+      console.log("📦 Repository created:", repository);
+      
       repository.lastSync = new Date(repository.lastSync);
       setRepositories((prev) => [...prev, repository]);
       setNewRepo({ name: "", url: "", description: "", language: "" });
       setRepoModalOpen(false);
+      console.log("✅ Repository added successfully");
     } catch (err) {
-      console.error("Error creating repository:", err);
+      console.error("❌ Error creating repository:", err);
       alert("Failed to create repository. Please try again.");
     }
   };
@@ -171,16 +207,27 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const handleCreateOnboarding = async () => {
     if (!newOnboarding.email || !newOnboarding.role || newOnboarding.repositories.length === 0) return;
     try {
+      console.log("🔄 Creating onboarding session:", newOnboarding);
+      const payload = { ...newOnboarding, adminUid: user.uid };
+      console.log("📡 Sending payload:", payload);
+      
       const response = await fetch("http://localhost:8001/onboarding-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newOnboarding, adminUid: user.uid }),
+        body: JSON.stringify(payload),
       });
+      console.log("📡 Onboarding create response status:", response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Onboarding create failed:", errorText);
         const err = await response.json().catch(() => ({}));
         throw new Error(err.detail || "Failed to create onboarding session");
       }
+      
       const session = await response.json();
+      console.log("📦 Onboarding session created:", session);
+      
       session.createdAt = new Date(session.createdAt);
       setOnboardingSessions((prev) => [...prev, session]);
       setNewOnboarding({ email: "", role: "", repositories: [], customInstructions: "" });
@@ -189,8 +236,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       alert(
         `Onboarding session created!\n\n📧 Email invitation sent to: ${session.email}\n🔗 Signup link (dev): http://localhost:5174/employee-signup?token=${session.id}\n\nThe employee will create their account via this link and be directed to onboarding.`
       );
+      console.log("✅ Onboarding session added successfully");
     } catch (err) {
-      console.error("Error creating onboarding session:", err);
+      console.error("❌ Error creating onboarding session:", err);
       alert("Failed to create onboarding session. Please try again.");
     }
   };
@@ -340,7 +388,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   <Table.Th>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
-              <Table.Tbody>
+                            <Table.Tbody>
                 {onboardingSessions.map((s) => (
                   <Table.Tr key={s.id}>
                     <Table.Td>{s.email}</Table.Td>

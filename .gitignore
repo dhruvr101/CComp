@@ -4,8 +4,6 @@
 .env.development
 .env.production
 
-# Firebase service account
-*.json
 
 # Node stuff
 node_modules

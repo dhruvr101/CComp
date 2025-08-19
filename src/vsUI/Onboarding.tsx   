@@ -1,0 +1,42 @@
+import { useEffect, useState } from "react";
+import FileTree from "./FileTree";
+import CodeEditor from "./CodeEditor";
+import Terminal from "./Terminal";
+import Walkthrough from "./Walkthrough";
+import { Task, generateTasks } from "./tasks";
+
+export default function Onboarding() {
+  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<string>("");
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    generateTasks("colicitv2").then(setTasks);
+  }, []);
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 300px", 
+                  gridTemplateRows: "1fr 200px", height: "100vh" }}>
+      
+      {/* Sidebar */}
+      <aside style={{ gridRow: "1 / 3", gridColumn: "1", background: "#1e1e1e", color: "white", padding: 8 }}>
+        <FileTree onSelectFile={(f, c) => { setActiveFile(f); setFileContent(c); }} />
+      </aside>
+
+      {/* Code editor */}
+      <main style={{ gridRow: "1", gridColumn: "2", border: "1px solid #333" }}>
+        <CodeEditor fileName={activeFile} content={fileContent} />
+      </main>
+
+      {/* Walkthrough */}
+      <section style={{ gridRow: "1", gridColumn: "3", background: "#252526", color: "white", overflowY: "auto", padding: 12 }}>
+        <Walkthrough tasks={tasks} />
+      </section>
+
+      {/* Terminal */}
+      <footer style={{ gridRow: "2", gridColumn: "2 / 4", background: "#1e1e1e", color: "white", padding: 8 }}>
+        <Terminal />
+      </footer>
+    </div>
+  );
+}

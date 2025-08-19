@@ -8,7 +8,6 @@ interface WalkthroughProps {
   onTaskUpdate: (taskId: string, updates: Partial<Task>) => void;
   onTaskComplete: (taskId: string) => void;
   onSessionComplete: () => void;
-  isPreviewMode?: boolean;
 }
 
 interface TaskAttempt {
@@ -21,8 +20,7 @@ export default function Walkthrough({
   tasks, 
   onTaskUpdate, 
   onTaskComplete, 
-  onSessionComplete,
-  isPreviewMode = false
+  onSessionComplete 
 }: WalkthroughProps) {
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
