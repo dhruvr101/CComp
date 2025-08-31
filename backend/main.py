@@ -228,7 +228,7 @@ async def create_onboarding(session: CreateOnboardingRequest):
       .collection("onboarding_sessions").document(session_id)
     session_ref.set(new_session.dict())
 
-    link = f"http://localhost:5175/?employee-signup&token={session_id}"
+    link = f"http://localhost:5173/?employee-signup&token={session_id}"
     send_onboarding_email(session.email, link, session.role, admin_name)
     return new_session
 
